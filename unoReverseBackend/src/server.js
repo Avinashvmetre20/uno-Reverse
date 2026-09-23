@@ -1,10 +1,9 @@
 import app from './app.js';
 import env from './config/env.js';
-import logger from './config/logger.js';
 import pool from './database/connection.js';
 
 const server = app.listen(env.port, () => {
-  logger.info({ port: env.port }, 'server listening');
+  console.log(`server listening on port ${env.port}`);
 });
 
 async function shutdown() {

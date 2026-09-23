@@ -1,4 +1,3 @@
-import logger from '../../config/logger.js';
 import { getProfile, loginUser, registerUser } from './auth.service.js';
 
 export async function register(req, res) {
@@ -17,11 +16,6 @@ export async function register(req, res) {
     res.status(201).json({ message: 'Registered' });
   } catch (error) {
     const status = error.status || 500;
-
-    if (status === 500) {
-      logger.error({ code: error.code }, 'register failed');
-    }
-
     res.status(status).json({
       message: status === 500 ? 'Unable to register' : error.message,
     });
@@ -42,11 +36,6 @@ export async function login(req, res) {
     res.status(200).json({ token });
   } catch (error) {
     const status = error.status || 500;
-
-    if (status === 500) {
-      logger.error({ code: error.code }, 'login failed');
-    }
-
     res.status(status).json({
       message: status === 500 ? 'Unable to login' : error.message,
     });
@@ -59,11 +48,6 @@ export async function profile(req, res) {
     res.status(200).json(user);
   } catch (error) {
     const status = error.status || 500;
-
-    if (status === 500) {
-      logger.error({ code: error.code }, 'profile failed');
-    }
-
     res.status(status).json({
       message: status === 500 ? 'Unable to load profile' : error.message,
     });

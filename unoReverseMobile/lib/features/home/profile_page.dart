@@ -9,13 +9,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  late final Future<Map<String, dynamic>> _profileFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileFuture = AuthApi.profile();
-  }
+  late final Future<Map<String, dynamic>> _profileFuture = AuthApi.profile();
 
   @override
   Widget build(BuildContext context) {
@@ -39,25 +33,20 @@ class _ProfilePageState extends State<ProfilePage> {
           }
 
           final profile = snapshot.data ?? {};
-          final firstName = '${profile['firstName'] ?? ''}';
-          final lastName = '${profile['lastName'] ?? ''}';
-          final email = '${profile['email'] ?? ''}';
-          final role = '${profile['role'] ?? ''}';
+          final name =
+              '${profile['firstName'] ?? ''} ${profile['lastName'] ?? ''}'.trim();
 
           return ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              ListTile(
-                title: const Text('Name'),
-                subtitle: Text('$firstName $lastName'.trim()),
-              ),
+              ListTile(title: const Text('Name'), subtitle: Text(name)),
               ListTile(
                 title: const Text('Email'),
-                subtitle: Text(email),
+                subtitle: Text('${profile['email'] ?? ''}'),
               ),
               ListTile(
                 title: const Text('Role'),
-                subtitle: Text(role),
+                subtitle: Text('${profile['role'] ?? ''}'),
               ),
             ],
           );

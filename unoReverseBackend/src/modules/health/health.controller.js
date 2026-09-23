@@ -1,5 +1,4 @@
 import pool from '../../database/connection.js';
-import logger from '../../config/logger.js';
 
 export async function getHealth(req, res) {
   try {
@@ -8,11 +7,11 @@ export async function getHealth(req, res) {
       status: 'ok',
       database: 'up',
     });
-  } catch (error) {
-    logger.error({ code: error.code }, 'database health check failed');
+  } catch {
     res.status(503).json({
       status: 'error',
       database: 'down',
+      message: 'Database is down',
     });
   }
 }

@@ -30,11 +30,12 @@ class AuthApi {
       'password': password,
     });
 
-    if (data.statusCode != 200 || data.body['token'] is! String) {
+    final body = ApiClient.asMap(data.body);
+    if (data.statusCode != 200 || body['token'] is! String) {
       throw AuthException(ApiClient.message(data.body, 'Unable to login'));
     }
 
-    ApiClient.token = data.body['token'] as String;
+    ApiClient.token = body['token'] as String;
   }
 
   static Future<Map<String, dynamic>> profile() async {
@@ -44,7 +45,7 @@ class AuthApi {
       throw AuthException(ApiClient.message(data.body, 'Unable to load profile'));
     }
 
-    return data.body;
+    return ApiClient.asMap(data.body);
   }
 
   static void logout() {

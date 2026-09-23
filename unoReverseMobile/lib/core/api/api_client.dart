@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:uno_reverse/core/constants/api_constants.dart';
 
 class ApiException implements Exception {
   ApiException(this.message);
@@ -11,25 +10,37 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
+  static const baseUrl = 'http://127.0.0.1:3000';
   static String? token;
 
-  static Future<({int statusCode, Map<String, dynamic> body})> post(
+  static Future<({int statusCode, dynamic body})> get(String path) {
+    return _request('GET', path);
+  }
+
+  static Future<({int statusCode, dynamic body})> post(
     String path,
-    Map<String, String> payload,
+    Map<String, dynamic> payload,
   ) {
     return _request('POST', path, payload: payload);
   }
 
-  static Future<({int statusCode, Map<String, dynamic> body})> get(String path) {
-    return _request('GET', path);
+  static Future<({int statusCode, dynamic body})> put(
+    String path,
+    Map<String, dynamic> payload,
+  ) {
+    return _request('PUT', path, payload: payload);
   }
 
-  static Future<({int statusCode, Map<String, dynamic> body})> _request(
+  static Future<({int statusCode, dynamic body})> delete(String path) {
+    return _request('DELETE', path);
+  }
+
+  static Future<({int statusCode, dynamic body})> _request(
     String method,
     String path, {
-    Map<String, String>? payload,
+    Map<String, dynamic>? payload,
   }) async {
-    final url = '${ApiConstants.baseUrl}$path';
+    final url = '$baseUrl$path';
     final start = DateTime.now();
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -42,13 +53,25 @@ class ApiClient {
     }
 
     try {
-      final response = method == 'GET'
-          ? await http.get(Uri.parse(url), headers: headers)
-          : await http.post(
-              Uri.parse(url),
-              headers: headers,
-              body: jsonEncode(payload),
-            );
+      final http.Response response;
+      if (method == 'GET') {
+        response = await http.get(Uri.parse(url), headers: headers);
+      } else if (method == 'DELETE') {
+        response = await http.delete(Uri.parse(url), headers: headers);
+      } else if (method == 'PUT') {
+        response = await http.put(
+          Uri.parse(url),
+          headers: headers,
+          body: jsonEncode(payload),
+        );
+      } else {
+        response = await http.post(
+          Uri.parse(url),
+          headers: headers,
+          body: jsonEncode(payload),
+        );
+      }
+
       final ms = DateTime.now().difference(start).inMilliseconds;
       final body = _decode(response.body);
 
@@ -63,21 +86,40 @@ class ApiClient {
     }
   }
 
-  static Map<String, dynamic> _decode(String body) {
+  static dynamic _decode(String body) {
+    if (body.isEmpty) {
+      return null;
+    }
+
     try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-    } catch (_) {}
+      return jsonDecode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String message(dynamic body, String fallback) {
+    if (body is Map && body['message'] is String && body['message'].isNotEmpty) {
+      return body['message'] as String;
+    }
+    return fallback;
+  }
+
+  static Map<String, dynamic> asMap(dynamic body) {
+    if (body is Map<String, dynamic>) {
+      return body;
+    }
     return {};
   }
 
-  static String message(Map<String, dynamic> body, String fallback) {
-    final value = body['message'];
-    if (value is String && value.isNotEmpty) {
-      return value;
+  static List<Map<String, dynamic>> asList(dynamic body) {
+    if (body is! List) {
+      return [];
     }
-    return fallback;
+
+    return body
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 }
