@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:uno_reverse/core/api/auth_api.dart';
+import 'package:uno_reverse/core/storage/mpin_storage.dart';
 import 'package:uno_reverse/features/auth/register_page.dart';
-import 'package:uno_reverse/features/home/home_page.dart';
+import 'package:uno_reverse/features/mpin/mpin_setup_page.dart';
+import 'package:uno_reverse/features/mpin/mpin_verify_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,17 +30,29 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    final email = _email.text.trim().toLowerCase();
+
     setState(() => _loading = true);
     try {
       await AuthApi.login(
-        email: _email.text.trim(),
+        email: email,
         password: _password.text,
       );
       if (!mounted) {
         return;
       }
+
+      final hasPin = await MpinStorage.hasPinFor(email);
+      if (!mounted) {
+        return;
+      }
+
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomePage()),
+        MaterialPageRoute(
+          builder: (_) => hasPin
+              ? MpinVerifyPage(email: email)
+              : MpinSetupPage(email: email),
+        ),
       );
     } on AuthException catch (error) {
       _showMessage(error.message);
