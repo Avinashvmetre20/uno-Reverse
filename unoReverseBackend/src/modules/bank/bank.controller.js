@@ -4,7 +4,10 @@ import {
   createUserTransaction,
   deleteBankAccount,
   deleteCardAccount,
+  insertSpendGainUserTransaction,
   listBankAccounts,
+  listBankBalances,
+  listCreditCardBalances,
   listCardAccounts,
   listUserTransactions,
   updateBankAccount,
@@ -68,6 +71,38 @@ export async function list(req, res) {
     const status = error.status || 500;
     res.status(status).json({
       message: status === 500 ? 'Unable to load bank accounts' : error.message,
+    });
+  }
+}
+
+export async function getBankBalance(req, res) {
+  try {
+    const data = await listBankBalances(req.user.userId);
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({
+      success: false,
+      message: status === 500 ? 'Unable to load bank balances' : error.message,
+    });
+  }
+}
+
+export async function getCreditCardBalance(req, res) {
+  try {
+    const data = await listCreditCardBalances(req.user.userId);
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({
+      success: false,
+      message: status === 500 ? 'Unable to load credit card balances' : error.message,
     });
   }
 }
@@ -282,7 +317,6 @@ export async function createTransaction(req, res) {
   const transactionType =
     typeof req.body?.transactionType === 'string' ? req.body.transactionType.trim().toLowerCase() : '';
   const amount = optionalNumber(req.body?.amount);
-  const previousBalance = optionalNumber(req.body?.previousBalance);
   const balanceAmount = optionalNumber(req.body?.balanceAmount);
   const purpose = optionalText(req.body?.purpose);
   const notes = optionalText(req.body?.notes);
@@ -317,7 +351,6 @@ export async function createTransaction(req, res) {
       cardId,
       transactionType,
       amount,
-      previousBalance,
       balanceAmount,
       purpose,
       notes,
@@ -341,6 +374,41 @@ export async function listTransactions(req, res) {
     const status = error.status || 500;
     res.status(status).json({
       message: status === 500 ? 'Unable to load transactions' : error.message,
+    });
+  }
+}
+
+export async function insertTransactions(req, res) {
+  const bankId = optionalBankId(req.body?.bankId);
+  const hasCardId = Object.prototype.hasOwnProperty.call(req.body || {}, 'cardId');
+  const cardId = hasCardId ? optionalBankId(req.body.cardId) : null;
+  const transactionType =
+    typeof req.body?.transactionType === 'string'
+      ? req.body.transactionType.trim().toLowerCase()
+      : '';
+  const amount = optionalNumber(req.body?.amount);
+  const purpose = optionalText(req.body?.purpose);
+  const notes = optionalText(req.body?.notes);
+
+  try {
+    const transaction = await insertSpendGainUserTransaction(req.user.userId, {
+      bankId,
+      cardId,
+      transactionType,
+      amount,
+      purpose,
+      notes,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: transaction,
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({
+      success: false,
+      message: status === 500 ? 'Unable to insert transaction' : error.message,
     });
   }
 }

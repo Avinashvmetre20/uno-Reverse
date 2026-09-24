@@ -41,7 +41,7 @@ export async function getProfile(userId) {
     dateOfBirth: user.date_of_birth,
     gender: user.gender,
     avatarUrl: user.avatar_url,
-    status: user.status,
+    isActive: user.is_active,
     isEmailVerified: user.is_email_verified,
     isMobileVerified: user.is_mobile_verified,
     lastLoginAt: user.last_login_at,

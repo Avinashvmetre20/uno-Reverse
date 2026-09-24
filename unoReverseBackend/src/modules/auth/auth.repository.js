@@ -59,7 +59,7 @@ export async function findUserByEmail(email) {
 export async function findUserById(userId) {
   const result = await pool.query(
     `SELECT user_id, first_name, last_name, role, email, mobile_number,
-            date_of_birth, gender, avatar_url, status,
+            date_of_birth, gender, avatar_url, is_active,
             is_email_verified, is_mobile_verified, last_login_at, created_at
      FROM user_master
      WHERE user_id = $1

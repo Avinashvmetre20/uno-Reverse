@@ -8,7 +8,7 @@ CREATE TABLE user_master (
     date_of_birth       DATE,
     gender              VARCHAR(20),
     avatar_url          TEXT,
-    status              VARCHAR(20) NOT NULL DEFAULT 'active',
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     is_email_verified   BOOLEAN NOT NULL DEFAULT FALSE,
     is_mobile_verified  BOOLEAN NOT NULL DEFAULT FALSE,
     last_login_at       TIMESTAMPTZ,

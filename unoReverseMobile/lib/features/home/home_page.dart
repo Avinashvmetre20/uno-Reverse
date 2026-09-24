@@ -118,7 +118,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           const Center(child: Text('Home')),
           const Center(child: Text('Vault')),
-          const MoneyPage(),
+          MoneyPage(isActive: _index == 2),
           Center(
             child: TextButton(
               onPressed: _logout,

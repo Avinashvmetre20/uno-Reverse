@@ -4,6 +4,9 @@ import {
   create,
   createCard,
   createTransaction,
+  getBankBalance,
+  getCreditCardBalance,
+  insertTransactions,
   list,
   listCards,
   listTransactions,
@@ -17,6 +20,8 @@ const router = Router();
 
 router.post('/banks', authenticate, create);
 router.get('/banks', authenticate, list);
+router.get('/bank-balance', authenticate, getBankBalance);
+router.get('/credit-card-balance', authenticate, getCreditCardBalance);
 router.put('/banks/:bankId', authenticate, update);
 router.delete('/banks/:bankId', authenticate, remove);
 
@@ -27,5 +32,6 @@ router.delete('/cards/:cardId', authenticate, removeCard);
 
 router.post('/transactions', authenticate, createTransaction);
 router.get('/transactions', authenticate, listTransactions);
-
+router.post('/insert-transactions', authenticate, insertTransactions);
+ 
 export default router;

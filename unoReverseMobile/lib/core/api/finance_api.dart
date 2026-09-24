@@ -11,6 +11,36 @@ class FinanceApi {
     return ApiClient.asList(data.body);
   }
 
+  static Future<List<Map<String, dynamic>>> listBankBalances() async {
+    final data = await ApiClient.get('/bank-balance');
+    if (data.statusCode != 200) {
+      throw FinanceException(
+        ApiClient.message(data.body, 'Unable to load bank balances'),
+      );
+    }
+
+    final body = data.body;
+    if (body is Map && body['data'] is List) {
+      return ApiClient.asList(body['data']);
+    }
+    return ApiClient.asList(body);
+  }
+
+  static Future<List<Map<String, dynamic>>> listCreditCardBalances() async {
+    final data = await ApiClient.get('/credit-card-balance');
+    if (data.statusCode != 200) {
+      throw FinanceException(
+        ApiClient.message(data.body, 'Unable to load credit card balances'),
+      );
+    }
+
+    final body = data.body;
+    if (body is Map && body['data'] is List) {
+      return ApiClient.asList(body['data']);
+    }
+    return ApiClient.asList(body);
+  }
+
   static Future<Map<String, dynamic>> createBank(Map<String, dynamic> payload) async {
     final data = await ApiClient.post('/banks', payload);
     if (data.statusCode != 201) {
@@ -81,15 +111,20 @@ class FinanceApi {
     return ApiClient.asList(data.body);
   }
 
-  static Future<Map<String, dynamic>> createTransaction(
+  static Future<Map<String, dynamic>> insertTransaction(
     Map<String, dynamic> payload,
   ) async {
-    final data = await ApiClient.post('/transactions', payload);
+    final data = await ApiClient.post('/insert-transactions', payload);
     if (data.statusCode != 201) {
       throw FinanceException(
-        ApiClient.message(data.body, 'Unable to create transaction'),
+        ApiClient.message(data.body, 'Unable to insert transaction'),
       );
     }
-    return ApiClient.asMap(data.body);
+
+    final body = data.body;
+    if (body is Map && body['data'] is Map) {
+      return ApiClient.asMap(body['data']);
+    }
+    return ApiClient.asMap(body);
   }
 }

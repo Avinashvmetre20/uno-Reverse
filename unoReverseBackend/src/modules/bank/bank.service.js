@@ -4,6 +4,8 @@ import {
   createTransaction,
   findActiveBankById,
   findActiveBanksByUserId,
+  findBankBalancesByUserId,
+  findCreditCardBalancesByUserId,
   findActiveCardById,
   findActiveCardsByUserId,
   findActiveTransactionsByUserId,
@@ -11,6 +13,7 @@ import {
   softDeleteCard,
   updateBank,
   updateCard,
+  insertSpendGainTransaction,
 } from './bank.repository.js';
 
 function mapBank(row) {
@@ -70,6 +73,36 @@ export async function createBankAccount(userId, payload) {
 export async function listBankAccounts(userId) {
   const banks = await findActiveBanksByUserId(userId);
   return banks.map(mapBank);
+}
+
+export async function listBankBalances(userId) {
+  const rows = await findBankBalancesByUserId(userId);
+
+  return rows
+    .filter((row) => row.bank_id != null)
+    .map((row) => ({
+      userId: row.user_id,
+      bankId: row.bank_id,
+      bankName: row.bank_name,
+      accountType: row.account_type,
+      accountLast4: row.account_last_4,
+      balance: row.balance,
+      debitCards: Array.isArray(row.debit_cards) ? row.debit_cards : [],
+    }));
+}
+
+export async function listCreditCardBalances(userId) {
+  const rows = await findCreditCardBalancesByUserId(userId);
+
+  return rows.map((row) => ({
+    cardId: row.card_id,
+    userId: row.user_id,
+    bankId: row.bank_id,
+    cardName: row.card_name,
+    cardLast4: row.card_last_4,
+    creditLimit: row.credit_limit,
+    spentAmount: row.spent_amount,
+  }));
 }
 
 export async function updateBankAccount(userId, bankId, payload) {
@@ -147,7 +180,6 @@ function mapTransaction(row) {
     cardId: row.card_id,
     transactionType: row.transaction_type,
     amount: row.amount,
-    previousBalance: row.previous_balance,
     balanceAmount: row.balance_amount,
     purpose: row.purpose,
     notes: row.notes,
@@ -182,11 +214,95 @@ export async function createUserTransaction(userId, payload) {
     cardId: payload.cardId,
     transactionType: payload.transactionType,
     amount: payload.amount,
-    previousBalance: payload.previousBalance,
     balanceAmount: payload.balanceAmount,
     purpose: payload.purpose,
     notes: payload.notes,
     transactionDate: payload.transactionDate,
+  });
+
+  return mapTransaction(transaction);
+}
+
+function toAmount(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function cardKind(cardType) {
+  const type = String(cardType || '').trim();
+  if (type === 'Credit Card') {
+    return 'credit';
+  }
+  if (type === 'Debit Card') {
+    return 'debit';
+  }
+  return 'other';
+}
+
+export async function insertSpendGainUserTransaction(userId, payload) {
+  const amount = toAmount(payload.amount);
+  const type = String(payload.transactionType || '').toLowerCase();
+
+  const bank = await findActiveBankById(payload.bankId, userId);
+  const card =
+    payload.cardId !== null && payload.cardId !== undefined
+      ? await findActiveCardById(payload.cardId, userId)
+      : null;
+
+  const kind = card ? cardKind(card.card_type) : 'none';
+  const currentBankBalance = toAmount(bank?.balance);
+  const currentSpent = card ? toAmount(card.spent_amount) : 0;
+
+  let nextBankBalance = currentBankBalance;
+  let nextCreditLimit;
+  let nextSpentAmount;
+  let balanceAmount;
+  let shouldUpdateBank = false;
+  let shouldUpdateCard = false;
+
+  if (type === 'spend') {
+    if (kind === 'credit') {
+      nextSpentAmount = currentSpent + amount;
+      balanceAmount = nextSpentAmount;
+      shouldUpdateCard = true;
+    } else {
+      nextBankBalance = currentBankBalance - amount;
+      balanceAmount = nextBankBalance;
+      shouldUpdateBank = true;
+
+      if (kind === 'debit') {
+        nextCreditLimit = nextBankBalance;
+        shouldUpdateCard = true;
+      }
+    }
+  } else if (kind === 'credit') {
+    nextSpentAmount = Math.max(0, currentSpent - amount);
+    balanceAmount = nextSpentAmount;
+    shouldUpdateCard = true;
+  } else {
+    // Gain with no card OR debit card: update bank + credit_limit
+    nextBankBalance = currentBankBalance + amount;
+    balanceAmount = nextBankBalance;
+    shouldUpdateBank = true;
+    nextCreditLimit = nextBankBalance;
+    shouldUpdateCard = true;
+  }
+
+  const transaction = await insertSpendGainTransaction({
+    userId,
+    bankId: payload.bankId,
+    cardId: payload.cardId,
+    transactionType: type,
+    amount,
+    balanceAmount,
+    purpose: payload.purpose,
+    notes: payload.notes,
+    nextBankBalance,
+    nextCreditLimit,
+    nextSpentAmount,
+    shouldUpdateBank,
+    shouldUpdateCard,
+    syncBankDebitCards: type === 'gain' && kind === 'none',
   });
 
   return mapTransaction(transaction);
