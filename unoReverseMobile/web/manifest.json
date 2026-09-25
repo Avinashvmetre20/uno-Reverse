@@ -1,6 +1,6 @@
 {
-    "name": "uno_reverse",
-    "short_name": "uno_reverse",
+    "name": "Core",
+    "short_name": "Core",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

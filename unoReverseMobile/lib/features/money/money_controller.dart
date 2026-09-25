@@ -7,7 +7,6 @@ class MoneyController extends ChangeNotifier {
   bool loading = false;
   String? error;
   List<Map<String, dynamic>> banks = [];
-  List<Map<String, dynamic>> cards = [];
   List<Map<String, dynamic>> creditCards = [];
   List<Map<String, dynamic>> transactions = [];
   double totalBalance = 0;
@@ -23,7 +22,6 @@ class MoneyController extends ChangeNotifier {
       final results = await Future.wait([
         FinanceApi.listBankBalances(),
         FinanceApi.listCreditCardBalances(),
-        FinanceApi.listCards(),
         FinanceApi.listTransactions(),
       ]);
 
@@ -36,8 +34,7 @@ class MoneyController extends ChangeNotifier {
       totalBalance = total;
       banks = nextBanks;
       creditCards = results[1];
-      cards = results[2];
-      transactions = results[3];
+      transactions = results[2];
       loading = false;
       error = null;
       notifyListeners();
@@ -109,11 +106,6 @@ class MoneyController extends ChangeNotifier {
       }
     }
 
-    for (final card in cards) {
-      if (card['cardId'] == cardId) {
-        return _formatCardName(card);
-      }
-    }
     return 'Card #$cardId';
   }
 

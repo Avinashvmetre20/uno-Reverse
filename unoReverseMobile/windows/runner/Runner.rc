@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.avinashvmetre20" "\0"
-            VALUE "FileDescription", "uno_reverse" "\0"
+            VALUE "FileDescription", "Core" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "uno_reverse" "\0"
+            VALUE "InternalName", "Core" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.avinashvmetre20. All rights reserved." "\0"
-            VALUE "OriginalFilename", "uno_reverse.exe" "\0"
-            VALUE "ProductName", "uno_reverse" "\0"
+            VALUE "OriginalFilename", "Core.exe" "\0"
+            VALUE "ProductName", "Core" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

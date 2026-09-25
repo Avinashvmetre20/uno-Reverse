@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:uno_reverse/core/api/auth_api.dart';
-import 'package:uno_reverse/core/storage/mpin_storage.dart';
-import 'package:uno_reverse/features/auth/mpin_page.dart';
+import 'package:uno_reverse/core/api/api_client.dart';
+import 'package:uno_reverse/core/authentication/auth_controller.dart';
 import 'package:uno_reverse/features/auth/register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -16,6 +15,23 @@ class _LoginPageState extends State<LoginPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
+  String? _shownNotice;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final notice = AuthScope.of(context).notice;
+    if (notice != null && notice != _shownNotice) {
+      _shownNotice = notice;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showMessage(notice);
+        AuthScope.of(context).clearNotice();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -29,29 +45,13 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final email = _email.text.trim().toLowerCase();
     setState(() => _loading = true);
-
     try {
-      await AuthApi.login(email: email, password: _password.text);
-      if (!mounted) {
-        return;
-      }
-
-      final hasPin = await MpinStorage.hasPinFor(email);
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => MpinPage(
-            email: email,
-            mode: hasPin ? MpinMode.verify : MpinMode.setup,
-          ),
-        ),
+      await AuthScope.of(context).login(
+        _email.text.trim().toLowerCase(),
+        _password.text,
       );
-    } on AuthException catch (error) {
+    } on ApiException catch (error) {
       _showMessage(error.message);
     } finally {
       if (mounted) {
@@ -88,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Uno Reverse',
+                      'Core',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),

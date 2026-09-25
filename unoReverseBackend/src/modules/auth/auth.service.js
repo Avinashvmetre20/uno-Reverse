@@ -1,34 +1,78 @@
-import jwt from 'jsonwebtoken';
-import env from '../../config/env.js';
-import { createUser, findUserByEmail, findUserById } from './auth.repository.js';
+import {
+  createSession,
+  createUser,
+  findUserByEmail,
+  findUserById,
+  rotateRefreshToken,
+  revokeByRefreshToken,
+  touchLastLogin,
+  updatePasswordHash,
+} from './auth.repository.js';
+import { hashPassword, isPasswordHash, verifyPassword } from './password.js';
+import { signAccessToken } from './tokens.js';
 
-export async function registerUser({ firstName, lastName, email, password }) {
-  await createUser({ firstName, lastName, email, password });
+function httpError(status, message, code) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
 }
 
-export async function loginUser(email, password) {
+function issue(user, session) {
+  return {
+    accessToken: signAccessToken({
+      userId: user.userId ?? user.user_id,
+      email: user.email,
+      role: user.role,
+      sessionId: session.sessionId,
+    }),
+    refreshToken: session.refreshToken,
+    sessionId: session.sessionId,
+  };
+}
+
+export async function registerUser({ firstName, lastName, email, password }) {
+  const passwordHash = await hashPassword(password);
+  await createUser({ firstName, lastName, email, password: passwordHash });
+}
+
+export async function loginUser(email, password, platform) {
   const user = await findUserByEmail(email);
 
-  if (!user || user.login_password !== password) {
-    const error = new Error('Invalid email or password');
-    error.status = 401;
-    throw error;
+  if (!user || !(await verifyPassword(password, user.login_password))) {
+    throw httpError(401, 'Invalid email or password', 'INVALID_CREDENTIALS');
   }
 
-  return jwt.sign(
+  if (!isPasswordHash(user.login_password)) {
+    await updatePasswordHash(user.user_id, await hashPassword(password));
+  }
+
+  const session = await createSession({ userId: user.user_id, platform });
+  await touchLastLogin(user.user_id);
+
+  return issue(
     { userId: user.user_id, email: user.email, role: user.role },
-    env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn },
+    session,
   );
+}
+
+export async function refreshSession(refreshToken) {
+  const rotated = await rotateRefreshToken(refreshToken);
+  return issue(
+    { userId: rotated.userId, email: rotated.email, role: rotated.role },
+    rotated,
+  );
+}
+
+export async function logoutSession(refreshToken) {
+  await revokeByRefreshToken(refreshToken);
 }
 
 export async function getProfile(userId) {
   const user = await findUserById(userId);
 
   if (!user) {
-    const error = new Error('User not found');
-    error.status = 404;
-    throw error;
+    throw httpError(404, 'User not found', 'USER_NOT_FOUND');
   }
 
   return {

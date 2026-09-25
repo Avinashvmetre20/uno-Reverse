@@ -1,8 +1,11 @@
 import app from './app.js';
 import env from './config/env.js';
 import pool from './database/connection.js';
+import { ensureAuthSchema } from './modules/auth/auth.repository.js';
 
-const server = app.listen(env.port, () => {
+await ensureAuthSchema();
+
+const server = app.listen(env.port, '0.0.0.0', () => {
   console.log(`server listening on port ${env.port}`);
 });
 

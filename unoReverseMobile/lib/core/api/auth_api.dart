@@ -21,23 +21,6 @@ class AuthApi {
     }
   }
 
-  static Future<void> login({
-    required String email,
-    required String password,
-  }) async {
-    final data = await ApiClient.post('/auth/login', {
-      'email': email,
-      'password': password,
-    });
-
-    final body = ApiClient.asMap(data.body);
-    if (data.statusCode != 200 || body['token'] is! String) {
-      throw AuthException(ApiClient.message(data.body, 'Unable to login'));
-    }
-
-    ApiClient.token = body['token'] as String;
-  }
-
   static Future<Map<String, dynamic>> profile() async {
     final data = await ApiClient.get('/auth/profile');
 
@@ -46,9 +29,5 @@ class AuthApi {
     }
 
     return ApiClient.asMap(data.body);
-  }
-
-  static void logout() {
-    ApiClient.token = null;
   }
 }

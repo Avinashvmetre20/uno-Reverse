@@ -4,18 +4,31 @@ import 'package:uno_reverse/core/api/finance_api.dart';
 import 'package:uno_reverse/features/money/money_controller.dart';
 
 class BalanceHero extends StatelessWidget {
-  const BalanceHero({super.key, required this.total, required this.bankCount});
+  const BalanceHero({
+    super.key,
+    required this.banks,
+    required this.creditCards,
+  });
 
-  final double total;
-  final int bankCount;
+  final List<Map<String, dynamic>> banks;
+  final List<Map<String, dynamic>> creditCards;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final onPrimary = scheme.onPrimary;
+    final bankTotal = banks.fold<double>(
+      0,
+      (sum, bank) => sum + (asMoneyDouble(bank['balance']) ?? 0),
+    );
+    final spendTotal = creditCards.fold<double>(
+      0,
+      (sum, card) => sum + (asMoneyDouble(card['spentAmount']) ?? 0),
+    );
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -27,38 +40,136 @@ class BalanceHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Available balance',
-            style: TextStyle(
-              color: scheme.onPrimary.withValues(alpha: 0.85),
-              fontSize: 14,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _BalanceColumn(
+                title: 'Bank accounts',
+                color: onPrimary,
+                lines: [
+                  for (final bank in banks)
+                    _BalanceLine(
+                      label: '${bank['bankName'] ?? 'Bank'}',
+                      amount: formatMoney(asMoneyDouble(bank['balance']) ?? 0),
+                    ),
+                ],
+                total: formatMoney(bankTotal),
+                emptyText: 'No banks',
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            formatMoney(total),
-            style: TextStyle(
-              color: scheme.onPrimary,
-              fontSize: 34,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+            Container(
+              width: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: onPrimary.withValues(alpha: 0.28),
             ),
+            Expanded(
+              child: _BalanceColumn(
+                title: 'Credit cards',
+                color: onPrimary,
+                lines: [
+                  for (final card in creditCards)
+                    _BalanceLine(
+                      label: '${card['cardName'] ?? 'Card'}',
+                      amount: formatMoney(
+                        asMoneyDouble(card['spentAmount']) ?? 0,
+                      ),
+                    ),
+                ],
+                total: '-${formatMoney(spendTotal)}',
+                emptyText: 'No cards',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BalanceLine {
+  const _BalanceLine({required this.label, required this.amount});
+
+  final String label;
+  final String amount;
+}
+
+class _BalanceColumn extends StatelessWidget {
+  const _BalanceColumn({
+    required this.title,
+    required this.color,
+    required this.lines,
+    required this.total,
+    required this.emptyText,
+  });
+
+  final String title;
+  final Color color;
+  final List<_BalanceLine> lines;
+  final String total;
+  final String emptyText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: color.withValues(alpha: 0.75),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 6),
+        ),
+        const SizedBox(height: 8),
+        if (lines.isEmpty)
           Text(
-            bankCount == 0
-                ? 'No banks linked yet'
-                : '$bankCount bank account${bankCount == 1 ? '' : 's'}',
+            emptyText,
             style: TextStyle(
-              color: scheme.onPrimary.withValues(alpha: 0.8),
+              color: color.withValues(alpha: 0.7),
               fontSize: 13,
             ),
+          )
+        else
+          for (final line in lines) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    line.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  line.amount,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
+        const SizedBox(height: 2),
+        Divider(height: 1, thickness: 1, color: color.withValues(alpha: 0.35)),
+        const SizedBox(height: 8),
+        Text(
+          total,
+          textAlign: TextAlign.end,
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -81,26 +192,27 @@ class MoneyActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: color.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          child: Column(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: 14,
                 backgroundColor: color,
-                child: Icon(icon, color: Colors.white),
+                child: Icon(icon, color: Colors.white, size: 16),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.w700,
-                  fontSize: 16,
+                  fontSize: 14,
                 ),
               ),
             ],
@@ -224,13 +336,11 @@ class TransactionFormSheet extends StatefulWidget {
     super.key,
     required this.isSpend,
     required this.banks,
-    required this.cards,
     required this.controller,
   });
 
   final bool isSpend;
   final List<Map<String, dynamic>> banks;
-  final List<Map<String, dynamic>> cards;
   final MoneyController controller;
 
   @override
@@ -243,7 +353,6 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   late bool _isSpend;
   final _amountController = TextEditingController();
   final _purposeController = TextEditingController();
-  final _notesController = TextEditingController();
   int? _bankId;
   int? _cardId;
   bool _saving = false;
@@ -262,7 +371,6 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   void dispose() {
     _amountController.dispose();
     _purposeController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
@@ -285,16 +393,6 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       }
     }
     return null;
-  }
-
-  List<Map<String, dynamic>> get _availableCards {
-    return widget.cards.where((card) {
-      final linkedBankId = card['bankId'];
-      if (linkedBankId == null) {
-        return true;
-      }
-      return linkedBankId == _bankId;
-    }).toList();
   }
 
   double get _previousBalance {
@@ -392,7 +490,6 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
         isSpend: widget.isSpend ? true : _isSpend,
         amount: amount,
         purpose: _purposeController.text.trim(),
-        notes: _notesController.text.trim(),
       );
 
       if (!mounted) {
@@ -421,14 +518,14 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       padding: EdgeInsets.only(bottom: bottom),
       child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Center(
                 child: Container(
-                  width: 40,
+                  width: 36,
                   height: 4,
                   decoration: BoxDecoration(
                     color: Theme.of(context).dividerColor,
@@ -436,29 +533,37 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 widget.isSpend ? 'Record spend' : 'Record gain',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               if (widget.isSpend) ..._buildSpendFields(activeColor)
               else ..._buildGainFields(activeColor),
               if (_error != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
                   _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(
                   backgroundColor: activeColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 child: _saving
                     ? const SizedBox(
@@ -478,22 +583,27 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   List<Widget> _buildSpendFields(Color activeColor) {
     return [
       SegmentedButton<bool>(
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 13)),
+        ),
         segments: const [
           ButtonSegment(
             value: true,
             label: Text('Bank'),
-            icon: Icon(Icons.account_balance_outlined),
+            icon: Icon(Icons.account_balance_outlined, size: 16),
           ),
           ButtonSegment(
             value: false,
             label: Text('Credit card'),
-            icon: Icon(Icons.credit_card),
+            icon: Icon(Icons.credit_card, size: 16),
           ),
         ],
         selected: {_useBank},
         onSelectionChanged: (value) => _onSourceChanged(value.first),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 10),
       if (_useBank) ...[
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,10 +612,8 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
               child: DropdownButtonFormField<int>(
                 value: _bankId,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Bank account',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration('Bank account'),
+                style: _fieldTextStyle,
                 items: [
                   for (final bank in widget.controller.banks)
                     DropdownMenuItem(
@@ -530,14 +638,12 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
               child: DropdownButtonFormField<int?>(
                 value: _cardId,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Spend via',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration('Spend via'),
+                style: _fieldTextStyle,
                 items: [
                   const DropdownMenuItem<int?>(
                     value: null,
-                    child: Text('Cash'),
+                    child: Text('UPI'),
                   ),
                   for (final card in _debitCards)
                     DropdownMenuItem(
@@ -556,10 +662,8 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       ] else ...[
         DropdownButtonFormField<int>(
           value: _cardId,
-          decoration: const InputDecoration(
-            labelText: 'Credit card',
-            border: OutlineInputBorder(),
-          ),
+          decoration: _fieldDecoration('Credit card'),
+          style: _fieldTextStyle,
           items: [
             for (final card in widget.controller.creditCards)
               DropdownMenuItem(
@@ -578,40 +682,18 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
           },
         ),
       ],
-      const SizedBox(height: 16),
+      const SizedBox(height: 10),
       ..._amountPurposeNotes(activeColor),
     ];
   }
 
   List<Widget> _buildGainFields(Color activeColor) {
     return [
-      Text(
-        'Amount',
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
-      const SizedBox(height: 8),
-      TextField(
-        controller: _amountController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
-        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(
-          prefixText: '₹ ',
-          hintText: '0.00',
-          filled: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-        onChanged: (_) => setState(() {}),
-      ),
-      const SizedBox(height: 16),
       DropdownButtonFormField<int>(
         value: _bankId,
-        decoration: const InputDecoration(
-          labelText: 'Bank account',
-          border: OutlineInputBorder(),
-        ),
+        isExpanded: true,
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Bank account'),
         items: [
           for (final bank in widget.banks)
             DropdownMenuItem(
@@ -626,25 +708,35 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
           setState(() {
             _bankId = value;
             if (_cardId != null &&
-                !_availableCards.any((card) => card['cardId'] == _cardId)) {
+                !_debitCards.any((card) => card['cardId'] == _cardId)) {
               _cardId = null;
             }
           });
         },
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 10),
+      TextField(
+        controller: _amountController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+        ],
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Amount', hint: '0.00', prefix: '₹ '),
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 10),
       DropdownButtonFormField<int?>(
         value: _cardId,
-        decoration: const InputDecoration(
-          labelText: 'Card (optional)',
-          border: OutlineInputBorder(),
-        ),
+        isExpanded: true,
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Card (optional)'),
         items: [
           const DropdownMenuItem<int?>(
             value: null,
             child: Text('No card / Cash'),
           ),
-          for (final card in _availableCards)
+          for (final card in _debitCards)
             DropdownMenuItem(
               value: card['cardId'] as int?,
               child: Text(
@@ -657,90 +749,86 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
             ? null
             : (value) => setState(() => _cardId = value),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 10),
       TextField(
         controller: _purposeController,
         textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          labelText: 'Purpose',
-          hintText: 'Food, salary, rent...',
-          border: OutlineInputBorder(),
-        ),
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Purpose', hint: 'Food, salary, rent...'),
       ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _notesController,
-        textCapitalization: TextCapitalization.sentences,
-        maxLines: 2,
-        decoration: const InputDecoration(
-          labelText: 'Notes (optional)',
-          border: OutlineInputBorder(),
-        ),
+      const SizedBox(height: 10),
+      BalancePreview(
+        previous: _bankId == null ? null : _previousBalance,
+        next: _bankId == null ? null : _balanceAfter,
+        color: activeColor,
       ),
-      if (_bankId != null) ...[
-        const SizedBox(height: 16),
-        BalancePreview(
-          previous: _previousBalance,
-          next: _balanceAfter,
-          color: activeColor,
-        ),
-      ],
     ];
   }
 
   List<Widget> _amountPurposeNotes(Color activeColor) {
-    final showPreview = _useBank ? _bankId != null : _cardId != null;
+    final hasSource = _useBank ? _bankId != null : _cardId != null;
 
     return [
-      Text(
-        'Amount',
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
-      const SizedBox(height: 8),
       TextField(
         controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
         ],
-        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(
-          prefixText: '₹ ',
-          hintText: '0.00',
-          filled: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        ),
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Amount', hint: '0.00', prefix: '₹ '),
         onChanged: (_) => setState(() {}),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 10),
       TextField(
         controller: _purposeController,
         textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          labelText: 'Purpose',
-          hintText: 'Food, salary, rent...',
-          border: OutlineInputBorder(),
-        ),
+        style: _fieldTextStyle,
+        decoration: _fieldDecoration('Purpose', hint: 'Food, salary, rent...'),
       ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _notesController,
-        textCapitalization: TextCapitalization.sentences,
-        maxLines: 2,
-        decoration: const InputDecoration(
-          labelText: 'Notes (optional)',
-          border: OutlineInputBorder(),
-        ),
+      const SizedBox(height: 10),
+      BalancePreview(
+        previous: hasSource ? _previousBalance : null,
+        next: hasSource ? _balanceAfter : null,
+        color: activeColor,
       ),
-      if (showPreview) ...[
-        const SizedBox(height: 16),
-        BalancePreview(
-          previous: _previousBalance,
-          next: _balanceAfter,
-          color: activeColor,
-        ),
-      ],
     ];
+  }
+
+  TextStyle get _fieldTextStyle => TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: Theme.of(context).colorScheme.onSurface,
+      );
+
+  InputDecoration _fieldDecoration(
+    String label, {
+    String? hint,
+    String? prefix,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(10);
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixText: prefix,
+      isDense: true,
+      filled: true,
+      fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      labelStyle: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+      hintStyle: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+      floatingLabelStyle: TextStyle(fontSize: 13, color: scheme.primary),
+      border: OutlineInputBorder(borderRadius: radius),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: scheme.primary, width: 1.4),
+      ),
+    );
   }
 
   String _bankOptionLabel(Map<String, dynamic> bank) {
@@ -786,17 +874,18 @@ class BalancePreview extends StatelessWidget {
     required this.color,
   });
 
-  final double previous;
+  final double? previous;
   final double? next;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
@@ -804,25 +893,38 @@ class BalancePreview extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Before', style: TextStyle(fontSize: 12)),
-                const SizedBox(height: 4),
                 Text(
-                  formatMoney(previous),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  'Before',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  previous == null ? '--' : formatMoney(previous!),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
-          Icon(Icons.arrow_forward_rounded, color: color),
+          Icon(Icons.arrow_forward_rounded, size: 16, color: color),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Text('After', style: TextStyle(fontSize: 12)),
-                const SizedBox(height: 4),
+                Text(
+                  'After',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Text(
                   next == null ? '--' : formatMoney(next!),
                   style: TextStyle(
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: color,
                   ),

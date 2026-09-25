@@ -70,7 +70,6 @@ class _MoneyPageState extends State<MoneyPage> {
       builder: (_) => TransactionFormSheet(
         isSpend: isSpend,
         banks: _controller.banks,
-        cards: _controller.cards,
         controller: _controller,
       ),
     );
@@ -117,8 +116,8 @@ class _MoneyPageState extends State<MoneyPage> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
           BalanceHero(
-            total: _controller.totalBalance,
-            bankCount: _controller.banks.length,
+            banks: _controller.banks,
+            creditCards: _controller.creditCards,
           ),
           const SizedBox(height: 16),
           Row(

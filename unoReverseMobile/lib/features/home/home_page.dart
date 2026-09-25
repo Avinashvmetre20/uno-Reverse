@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:uno_reverse/core/api/auth_api.dart';
-import 'package:uno_reverse/features/auth/login_page.dart';
+import 'package:uno_reverse/core/authentication/auth_controller.dart';
+import 'package:uno_reverse/core/authentication/mpin_store.dart';
+import 'package:uno_reverse/features/auth/mpin_change_page.dart';
 import 'package:uno_reverse/features/finance/finance_setup_page.dart';
 import 'package:uno_reverse/features/home/profile_page.dart';
 import 'package:uno_reverse/features/money/money_page.dart';
@@ -29,12 +30,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _logout() {
-    AuthApi.logout();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (_) => false,
-    );
+  Future<void> _logout() async {
+    await AuthScope.of(context).logout();
   }
 
   @override
@@ -52,7 +49,7 @@ class _HomePageState extends State<HomePage> {
                       child: Align(
                         alignment: Alignment.bottomLeft,
                         child: Text(
-                          'Uno Reverse',
+                          'Core',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w600,
@@ -119,12 +116,7 @@ class _HomePageState extends State<HomePage> {
           const Center(child: Text('Home')),
           const Center(child: Text('Vault')),
           MoneyPage(isActive: _index == 2),
-          Center(
-            child: TextButton(
-              onPressed: _logout,
-              child: const Text('Logout'),
-            ),
-          ),
+          _MoreTab(onLogout: _logout),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -155,5 +147,80 @@ class _HomePageState extends State<HomePage> {
       default:
         return selected ? Icons.home : Icons.home_outlined;
     }
+  }
+}
+
+class _MoreTab extends StatefulWidget {
+  const _MoreTab({required this.onLogout});
+
+  final Future<void> Function() onLogout;
+
+  @override
+  State<_MoreTab> createState() => _MoreTabState();
+}
+
+class _MoreTabState extends State<_MoreTab> {
+  bool _biometric = false;
+  bool _biometricAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final auth = AuthScope.of(context);
+    final enabled = await auth.mpin.biometricEnabled();
+    final available = await auth.biometrics.canAuthenticate();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _biometric = enabled;
+      _biometricAvailable = available;
+    });
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    try {
+      await AuthScope.of(context).enableBiometric(value);
+      if (mounted) {
+        setState(() => _biometric = value);
+      }
+    } on MpinException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.pin_outlined),
+          title: const Text('Change M-PIN'),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MpinChangePage()),
+            );
+          },
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.fingerprint),
+          title: const Text('Biometric unlock'),
+          value: _biometric,
+          onChanged: _biometricAvailable ? _toggleBiometric : null,
+        ),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text('Logout', style: TextStyle(color: Colors.red)),
+          onTap: widget.onLogout,
+        ),
+      ],
+    );
   }
 }
