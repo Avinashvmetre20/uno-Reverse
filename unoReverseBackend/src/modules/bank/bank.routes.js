@@ -31,7 +31,7 @@ router.put('/cards/:cardId', authenticate, updateCard);
 router.delete('/cards/:cardId', authenticate, removeCard);
 
 router.post('/transactions', authenticate, createTransaction);
-router.get('/transactions', authenticate, listTransactions);
+router.get('/transactions/list', authenticate, listTransactions);
 router.post('/insert-transactions', authenticate, insertTransactions);
  
 export default router;

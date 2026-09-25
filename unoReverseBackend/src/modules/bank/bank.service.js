@@ -243,13 +243,32 @@ export async function insertSpendGainUserTransaction(userId, payload) {
   const amount = toAmount(payload.amount);
   const type = String(payload.transactionType || '').toLowerCase();
 
-  const bank = await findActiveBankById(payload.bankId, userId);
-  const card =
-    payload.cardId !== null && payload.cardId !== undefined
-      ? await findActiveCardById(payload.cardId, userId)
-      : null;
+  const hasCard =
+    payload.cardId !== null && payload.cardId !== undefined;
+  const card = hasCard ? await findActiveCardById(payload.cardId, userId) : null;
+
+  if (hasCard && !card) {
+    const error = new Error('Card not found');
+    error.status = 404;
+    throw error;
+  }
 
   const kind = card ? cardKind(card.card_type) : 'none';
+  const bankId = payload.bankId ?? card?.bank_id ?? null;
+  const bank = bankId == null ? null : await findActiveBankById(bankId, userId);
+
+  if (bankId != null && !bank) {
+    const error = new Error('Bank account not found');
+    error.status = 404;
+    throw error;
+  }
+
+  if (bankId == null && kind !== 'credit') {
+    const error = new Error('bankId is required');
+    error.status = 400;
+    throw error;
+  }
+
   const currentBankBalance = toAmount(bank?.balance);
   const currentSpent = card ? toAmount(card.spent_amount) : 0;
 
@@ -290,7 +309,7 @@ export async function insertSpendGainUserTransaction(userId, payload) {
 
   const transaction = await insertSpendGainTransaction({
     userId,
-    bankId: payload.bankId,
+    bankId,
     cardId: payload.cardId,
     transactionType: type,
     amount,
@@ -310,5 +329,24 @@ export async function insertSpendGainUserTransaction(userId, payload) {
 
 export async function listUserTransactions(userId) {
   const transactions = await findActiveTransactionsByUserId(userId);
-  return transactions.map(mapTransaction);
+  return transactions.map((row) => {
+    const transaction = mapTransaction(row);
+    return {
+      userTransactionId: transaction.userTransactionId,
+      userId: transaction.userId,
+      bankId: transaction.bankId,
+      bankName: row.bank_name ?? null,
+      cardId: transaction.cardId,
+      cardName: row.card_name ?? null,
+      transactionType: transaction.transactionType,
+      amount: transaction.amount,
+      balanceAmount: transaction.balanceAmount,
+      purpose: transaction.purpose,
+      notes: transaction.notes,
+      transactionDate: transaction.transactionDate,
+      isActive: transaction.isActive,
+      createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt,
+    };
+  });
 }

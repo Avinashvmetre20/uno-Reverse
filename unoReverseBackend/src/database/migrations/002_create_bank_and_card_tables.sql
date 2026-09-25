@@ -45,7 +45,7 @@ CREATE TABLE card_master (
 CREATE TABLE user_transaction (
     user_transaction_id       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id              INTEGER NOT NULL,
-    bank_id              INTEGER NOT NULL,
+    bank_id              INTEGER,
     card_id              INTEGER,
     transaction_type     VARCHAR(20) NOT NULL,
     amount               NUMERIC(14, 2) NOT NULL,

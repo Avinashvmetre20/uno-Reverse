@@ -127,10 +127,7 @@ class _BalanceColumn extends StatelessWidget {
         if (lines.isEmpty)
           Text(
             emptyText,
-            style: TextStyle(
-              color: color.withValues(alpha: 0.7),
-              fontSize: 13,
-            ),
+            style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 13),
           )
         else
           for (final line in lines) ...[
@@ -259,6 +256,7 @@ class EmptyActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
@@ -267,11 +265,9 @@ class EmptyActivity extends StatelessWidget {
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Text(
-        'No transactions yet.\nTap Spend or Gain to add one.',
+        'No transactions yet\n\nYour spending and income activity\nwill appear here.',
         textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: muted),
       ),
     );
   }
@@ -280,55 +276,305 @@ class EmptyActivity extends StatelessWidget {
 class TransactionTile extends StatelessWidget {
   const TransactionTile({
     super.key,
-    required this.isSpend,
-    required this.amount,
-    required this.title,
-    required this.subtitle,
-    required this.balanceAfter,
-    required this.date,
+    required this.transaction,
+    required this.onTap,
   });
 
-  final bool isSpend;
-  final double amount;
-  final String title;
-  final String subtitle;
-  final double? balanceAfter;
-  final String date;
+  final Map<String, dynamic> transaction;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = isSpend ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
+    final kind = moneyTransactionKind(transaction['transactionType']);
+    final color = _transactionColor(kind);
+    final title = moneyTransactionTitle(kind, transaction['purpose']);
+    final meta = moneyActivityMeta(
+      bankName: transaction['bankName'],
+      cardName: transaction['cardName'],
+      time: moneyActivityClock(
+        transaction['transactionDate'] ?? transaction['createdAt'],
+      ),
+    );
+    final amount = moneySignedAmount(kind, transaction['amount']);
+    final balance = formatMoneyExact(transaction['balanceAmount']);
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.12),
-          child: Icon(
-            isSpend ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-            color: color,
-          ),
-        ),
-        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(
-          [
-            subtitle,
-            if (balanceAfter != null) 'Bal ${formatMoney(balanceAfter!)}',
-            if (date.isNotEmpty) date,
-          ].where((part) => part.isNotEmpty).join('  ·  '),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Text(
-          '${isSpend ? '-' : '+'}${formatMoney(amount)}',
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: color.withValues(alpha: 0.12),
+                child: Icon(_transactionIcon(kind), size: 16, color: color),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: muted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    amount,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                  ),
+                  if (balance.isNotEmpty)
+                    Text(
+                      balance,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: muted),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class TransactionDateHeader extends StatelessWidget {
+  const TransactionDateHeader({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          letterSpacing: 0.4,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+void showTransactionDetails(
+  BuildContext context,
+  Map<String, dynamic> transaction,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => TransactionDetailsSheet(transaction: transaction),
+  );
+}
+
+class TransactionDetailsSheet extends StatelessWidget {
+  const TransactionDetailsSheet({super.key, required this.transaction});
+
+  final Map<String, dynamic> transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = moneyTransactionKind(transaction['transactionType']);
+    final color = _transactionColor(kind);
+    final title = moneyTransactionTitle(kind, transaction['purpose']);
+    final signed = moneySignedAmount(kind, transaction['amount']);
+    final amount = formatMoneyExact(transaction['amount']);
+    final balance = formatMoneyExact(transaction['balanceAmount']);
+    final bank = _detailText(transaction['bankName'], 'Not linked');
+    final card = _detailText(transaction['cardName'], 'Not linked');
+    final notes = _detailText(transaction['notes'], 'No notes');
+    final when = moneyDetailsStamp(transaction['transactionDate']);
+    final created = moneyDetailsStamp(transaction['createdAt']);
+    final updated = moneyDetailsStamp(transaction['updatedAt']);
+    final id = transaction['userTransactionId'];
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            Text(
+              'Transaction Details',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            Icon(_transactionIcon(kind), color: color),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              signed,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(color: color, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              moneyTransactionTypeLabel(kind).toUpperCase(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const _DetailHeading('Account'),
+            _DetailRow(label: 'Bank', value: bank),
+            _DetailRow(label: 'Card', value: card),
+            const _DetailHeading('Transaction'),
+            _DetailRow(label: 'Amount', value: amount.isEmpty ? '—' : amount),
+            _DetailRow(
+              label: 'Transaction Type',
+              value: moneyTransactionTypeLabel(kind),
+            ),
+            _DetailRow(
+              label: 'Balance After Transaction',
+              value: balance.isEmpty ? '—' : balance,
+            ),
+            _DetailRow(label: 'Purpose', value: title),
+            _DetailRow(label: 'Date & Time', value: when.isEmpty ? '—' : when),
+            const _DetailHeading('Additional Information'),
+            _DetailRow(label: 'Notes', value: notes),
+            if (id != null) _DetailRow(label: 'Transaction ID', value: '#$id'),
+            if (created.isNotEmpty)
+              _DetailRow(label: 'Created', value: created),
+            if (updated.isNotEmpty)
+              _DetailRow(label: 'Updated', value: updated),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailHeading extends StatelessWidget {
+  const _DetailHeading(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(flex: 3, child: Text(value, textAlign: TextAlign.end)),
+        ],
+      ),
+    );
+  }
+}
+
+Color _transactionColor(MoneyTransactionKind kind) {
+  switch (kind) {
+    case MoneyTransactionKind.spend:
+    case MoneyTransactionKind.transfer:
+      return const Color(0xFFC62828);
+    case MoneyTransactionKind.gain:
+    case MoneyTransactionKind.refund:
+      return const Color(0xFF2E7D32);
+    case MoneyTransactionKind.other:
+      return const Color(0xFF546E7A);
+  }
+}
+
+IconData _transactionIcon(MoneyTransactionKind kind) {
+  switch (kind) {
+    case MoneyTransactionKind.spend:
+      return Icons.arrow_upward_rounded;
+    case MoneyTransactionKind.gain:
+      return Icons.arrow_downward_rounded;
+    case MoneyTransactionKind.transfer:
+      return Icons.swap_horiz_rounded;
+    case MoneyTransactionKind.refund:
+      return Icons.undo_rounded;
+    case MoneyTransactionKind.other:
+      return Icons.receipt_long_outlined;
+  }
+}
+
+String _detailText(dynamic value, String fallback) {
+  if (value == null) {
+    return fallback;
+  }
+  final text = '$value'.trim();
+  if (text.isEmpty || text.toLowerCase() == 'null') {
+    return fallback;
+  }
+  return text;
 }
 
 class TransactionFormSheet extends StatefulWidget {
@@ -456,13 +702,8 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
           setState(() => _error = 'Select a credit card');
           return;
         }
-        final creditCard = _selectedCreditCard;
-        final linkedBankId = creditCard?['bankId'];
-        if (linkedBankId is! int) {
-          setState(() => _error = 'Selected credit card is not linked to a bank');
-          return;
-        }
-        bankId = linkedBankId;
+        final linkedBankId = _selectedCreditCard?['bankId'];
+        bankId = linkedBankId is int ? linkedBankId : null;
         cardId = _cardId;
         if (amount > _previousBalance) {
           setState(() => _error = 'Amount is more than available credit');
@@ -485,7 +726,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
 
     try {
       await widget.controller.submitSpendOrGain(
-        bankId: bankId!,
+        bankId: bankId,
         cardId: cardId,
         isSpend: widget.isSpend ? true : _isSpend,
         amount: amount,
@@ -511,8 +752,9 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final activeColor =
-        widget.isSpend ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
+    final activeColor = widget.isSpend
+        ? const Color(0xFFC62828)
+        : const Color(0xFF2E7D32);
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -536,13 +778,14 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
               const SizedBox(height: 10),
               Text(
                 widget.isSpend ? 'Record spend' : 'Record gain',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-              if (widget.isSpend) ..._buildSpendFields(activeColor)
-              else ..._buildGainFields(activeColor),
+              if (widget.isSpend)
+                ..._buildSpendFields(activeColor)
+              else
+                ..._buildGainFields(activeColor),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -641,10 +884,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
                 decoration: _fieldDecoration('Spend via'),
                 style: _fieldTextStyle,
                 items: [
-                  const DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text('UPI'),
-                  ),
+                  const DropdownMenuItem<int?>(value: null, child: Text('UPI')),
                   for (final card in _debitCards)
                     DropdownMenuItem(
                       value: card['cardId'] as int?,
@@ -718,9 +958,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       TextField(
         controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
         style: _fieldTextStyle,
         decoration: _fieldDecoration('Amount', hint: '0.00', prefix: '₹ '),
         onChanged: (_) => setState(() {}),
@@ -772,9 +1010,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
       TextField(
         controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
         style: _fieldTextStyle,
         decoration: _fieldDecoration('Amount', hint: '0.00', prefix: '₹ '),
         onChanged: (_) => setState(() {}),
@@ -796,10 +1032,10 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   }
 
   TextStyle get _fieldTextStyle => TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: Theme.of(context).colorScheme.onSurface,
-      );
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    color: Theme.of(context).colorScheme.onSurface,
+  );
 
   InputDecoration _fieldDecoration(
     String label, {
@@ -903,7 +1139,10 @@ class BalancePreview extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   previous == null ? '--' : formatMoney(previous!),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

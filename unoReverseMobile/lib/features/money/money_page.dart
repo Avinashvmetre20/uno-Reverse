@@ -110,75 +110,78 @@ class _MoneyPageState extends State<MoneyPage> {
       );
     }
 
+    final activity = groupMoneyActivity(_controller.transactions);
+
     return RefreshIndicator(
       onRefresh: () => _controller.load(showFullPageLoader: false),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [
-          BalanceHero(
-            banks: _controller.banks,
-            creditCards: _controller.creditCards,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: MoneyActionButton(
-                  label: 'Spend',
-                  icon: Icons.arrow_upward_rounded,
-                  color: const Color(0xFFC62828),
-                  onTap: () => _openTransactionForm(isSpend: true),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                BalanceHero(
+                  banks: _controller.banks,
+                  creditCards: _controller.creditCards,
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: MoneyActionButton(
+                        label: 'Spend',
+                        icon: Icons.arrow_upward_rounded,
+                        color: const Color(0xFFC62828),
+                        onTap: () => _openTransactionForm(isSpend: true),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: MoneyActionButton(
+                        label: 'Gain',
+                        icon: Icons.arrow_downward_rounded,
+                        color: const Color(0xFF2E7D32),
+                        onTap: () => _openTransactionForm(isSpend: false),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_controller.banks.isEmpty) ...[
+                  const SizedBox(height: 16),
+                  EmptySetupCard(onSetup: _openFinanceSetup),
+                ],
+                const SizedBox(height: 28),
+                Text(
+                  'Recent activity',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                if (_controller.transactions.isEmpty) const EmptyActivity(),
+              ]),
+            ),
+          ),
+          if (activity.isNotEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              sliver: SliverList.builder(
+                itemCount: activity.length,
+                itemBuilder: (context, index) {
+                  final entry = activity[index];
+                  if (entry.isHeader) {
+                    return TransactionDateHeader(label: entry.label!);
+                  }
+                  final transaction = entry.transaction!;
+                  return TransactionTile(
+                    transaction: transaction,
+                    onTap: () => showTransactionDetails(context, transaction),
+                  );
+                },
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MoneyActionButton(
-                  label: 'Gain',
-                  icon: Icons.arrow_downward_rounded,
-                  color: const Color(0xFF2E7D32),
-                  onTap: () => _openTransactionForm(isSpend: false),
-                ),
-              ),
-            ],
-          ),
-          if (_controller.banks.isEmpty) ...[
-            const SizedBox(height: 16),
-            EmptySetupCard(onSetup: _openFinanceSetup),
-          ],
-          const SizedBox(height: 28),
-          Text(
-            'Recent activity',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 10),
-          if (_controller.transactions.isEmpty)
-            const EmptyActivity()
+            )
           else
-            ..._controller.transactions.map((tx) {
-              final type = '${tx['transactionType'] ?? ''}'.toLowerCase();
-              final isSpend = type == 'spend';
-              final amount = asMoneyDouble(tx['amount']) ?? 0;
-              final purpose = '${tx['purpose'] ?? ''}'.trim();
-              final bankId = tx['bankId'] is int ? tx['bankId'] as int : null;
-              final cardId = tx['cardId'] is int ? tx['cardId'] as int : null;
-              final cardText = _controller.cardLabel(cardId);
-
-              return TransactionTile(
-                isSpend: isSpend,
-                amount: amount,
-                title: purpose.isEmpty
-                    ? (isSpend ? 'Spent' : 'Received')
-                    : purpose,
-                subtitle: [
-                  _controller.bankLabel(bankId),
-                  if (cardText.isNotEmpty) cardText,
-                ].join('  ·  '),
-                balanceAfter: asMoneyDouble(tx['balanceAmount']),
-                date: formatMoneyDate(tx['transactionDate'] ?? tx['createdAt']),
-              );
-            }),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 28)),
         ],
       ),
     );

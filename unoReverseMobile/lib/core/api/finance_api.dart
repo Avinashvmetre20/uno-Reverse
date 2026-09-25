@@ -102,13 +102,18 @@ class FinanceApi {
   }
 
   static Future<List<Map<String, dynamic>>> listTransactions() async {
-    final data = await ApiClient.get('/transactions');
+    final data = await ApiClient.get('/transactions/list');
     if (data.statusCode != 200) {
       throw FinanceException(
         ApiClient.message(data.body, 'Unable to load transactions'),
       );
     }
-    return ApiClient.asList(data.body);
+
+    final body = data.body;
+    if (body is Map && body['data'] is List) {
+      return ApiClient.asList(body['data']);
+    }
+    return ApiClient.asList(body);
   }
 
   static Future<Map<String, dynamic>> insertTransaction(

@@ -120,38 +120,45 @@ class MoneyController extends ChangeNotifier {
 
   void applyTransactionLocally(Map<String, dynamic> result) {
     final bankId = result['bankId'];
+    final cardId = result['cardId'];
     final balanceAfter = asMoneyDouble(result['balanceAfter']);
     final transaction = result['transaction'];
-    if (bankId is! int) {
-      return;
-    }
+    var changed = false;
 
-    if (balanceAfter != null) {
-      banks = banks.map((bank) {
-        if (bank['bankId'] == bankId) {
-          return {
-            ...bank,
-            'balance': balanceAfter.toStringAsFixed(2),
-          };
+    if (bankId is int) {
+      if (balanceAfter != null) {
+        banks = banks.map((bank) {
+          if (bank['bankId'] == bankId) {
+            return {...bank, 'balance': balanceAfter.toStringAsFixed(2)};
+          }
+          return Map<String, dynamic>.from(bank);
+        }).toList();
+
+        var total = 0.0;
+        for (final bank in banks) {
+          total += asMoneyDouble(bank['balance']) ?? 0;
         }
-        return Map<String, dynamic>.from(bank);
-      }).toList();
-
-      var total = 0.0;
-      for (final bank in banks) {
-        total += asMoneyDouble(bank['balance']) ?? 0;
+        totalBalance = total;
+        changed = true;
       }
-      totalBalance = total;
+    } else if (cardId is int && balanceAfter != null) {
+      creditCards = creditCards.map((card) {
+        if (card['cardId'] == cardId) {
+          changed = true;
+          return {...card, 'spentAmount': balanceAfter.toStringAsFixed(2)};
+        }
+        return Map<String, dynamic>.from(card);
+      }).toList();
     }
 
     if (transaction is Map) {
-      transactions = [
-        Map<String, dynamic>.from(transaction),
-        ...transactions,
-      ];
+      transactions = [Map<String, dynamic>.from(transaction), ...transactions];
+      changed = true;
     }
 
-    notifyListeners();
+    if (changed) {
+      notifyListeners();
+    }
   }
 
   Future<void> softRefreshBalancesAndActivity() async {
@@ -179,7 +186,7 @@ class MoneyController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> submitSpendOrGain({
-    required int bankId,
+    int? bankId,
     int? cardId,
     required bool isSpend,
     required double amount,
@@ -187,7 +194,7 @@ class MoneyController extends ChangeNotifier {
     String? notes,
   }) async {
     final transaction = await FinanceApi.insertTransaction({
-      'bankId': bankId,
+      if (bankId != null) 'bankId': bankId,
       if (cardId != null) 'cardId': cardId,
       'transactionType': isSpend ? 'spend' : 'gain',
       'amount': amount,
@@ -199,7 +206,8 @@ class MoneyController extends ChangeNotifier {
 
     applyTransactionLocally({
       'transaction': transaction,
-      'bankId': bankId,
+      'bankId': transaction['bankId'] ?? bankId,
+      'cardId': transaction['cardId'] ?? cardId,
       'balanceAfter': balanceAfter,
     });
 
@@ -228,18 +236,259 @@ String formatMoney(double value) {
   return '₹$fixed';
 }
 
-String formatMoneyDate(dynamic value) {
+enum MoneyTransactionKind { spend, gain, transfer, refund, other }
+
+MoneyTransactionKind moneyTransactionKind(dynamic raw) {
+  switch ('${raw ?? ''}'.trim().toLowerCase()) {
+    case 'spend':
+      return MoneyTransactionKind.spend;
+    case 'gain':
+      return MoneyTransactionKind.gain;
+    case 'transfer':
+      return MoneyTransactionKind.transfer;
+    case 'refund':
+      return MoneyTransactionKind.refund;
+    default:
+      return MoneyTransactionKind.other;
+  }
+}
+
+String moneyTransactionTypeLabel(MoneyTransactionKind kind) {
+  switch (kind) {
+    case MoneyTransactionKind.spend:
+      return 'Spend';
+    case MoneyTransactionKind.gain:
+      return 'Gain';
+    case MoneyTransactionKind.transfer:
+      return 'Transfer';
+    case MoneyTransactionKind.refund:
+      return 'Refund';
+    case MoneyTransactionKind.other:
+      return 'Transaction';
+  }
+}
+
+String moneyTransactionTitle(MoneyTransactionKind kind, dynamic purpose) {
+  final text = _cleanText(purpose);
+  if (text.isNotEmpty) {
+    return _titleCase(text);
+  }
+  switch (kind) {
+    case MoneyTransactionKind.spend:
+      return 'Card payment';
+    case MoneyTransactionKind.gain:
+      return 'Money received';
+    case MoneyTransactionKind.transfer:
+      return 'Transfer';
+    case MoneyTransactionKind.refund:
+      return 'Refund';
+    case MoneyTransactionKind.other:
+      return 'Transaction';
+  }
+}
+
+String formatMoneyExact(dynamic value) {
+  final raw = _cleanText(value);
+  if (raw.isEmpty) {
+    return '';
+  }
+  final unsigned = raw.startsWith('-') ? raw.substring(1) : raw;
+  final pieces = unsigned.split('.');
+  final digits = pieces.first.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) {
+    return '';
+  }
+  final whole = digits.replaceFirst(RegExp(r'^0+(?=\d)'), '');
+  final grouped = _groupThousands(whole.isEmpty ? '0' : whole);
+  var fraction = pieces.length > 1
+      ? pieces[1].replaceAll(RegExp(r'[^0-9]'), '')
+      : '';
+  if (fraction.length > 2) {
+    fraction = fraction.substring(0, 2);
+  }
+  fraction = fraction.padRight(2, '0');
+  return '₹$grouped.$fraction';
+}
+
+String moneySignedAmount(MoneyTransactionKind kind, dynamic amount) {
+  final formatted = formatMoneyExact(amount);
+  if (formatted.isEmpty) {
+    return '';
+  }
+  switch (kind) {
+    case MoneyTransactionKind.spend:
+    case MoneyTransactionKind.transfer:
+      return '-$formatted';
+    case MoneyTransactionKind.gain:
+    case MoneyTransactionKind.refund:
+      return '+$formatted';
+    case MoneyTransactionKind.other:
+      return formatted;
+  }
+}
+
+String moneyActivityMeta({
+  required dynamic bankName,
+  required dynamic cardName,
+  required String time,
+}) {
+  final parts = <String>[
+    if (_cleanText(bankName).isNotEmpty) _cleanText(bankName),
+    if (_cleanText(cardName).isNotEmpty) _cleanText(cardName),
+    if (time.isNotEmpty) time,
+  ];
+  return parts.join(' · ');
+}
+
+DateTime? moneyLocalTime(dynamic value) {
+  final raw = _cleanText(value);
+  if (raw.isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(raw)?.toLocal();
+}
+
+String moneyActivityClock(dynamic value) {
+  final local = moneyLocalTime(value);
+  if (local == null) {
+    return '';
+  }
+  return _clock(local);
+}
+
+String moneyActivityGroupLabel(dynamic value, [DateTime? now]) {
+  final local = value is DateTime ? value : moneyLocalTime(value);
+  if (local == null) {
+    return 'UNDATED';
+  }
+  final clock = now ?? DateTime.now();
+  final day = DateTime(local.year, local.month, local.day);
+  final today = DateTime(clock.year, clock.month, clock.day);
+  final stamp = '${local.day} ${_monthUpper(local.month)}';
+  if (day == today) {
+    return 'TODAY · $stamp';
+  }
+  if (day == today.subtract(const Duration(days: 1))) {
+    return 'YESTERDAY · $stamp';
+  }
+  if (local.year == clock.year) {
+    return stamp;
+  }
+  return '$stamp ${local.year}';
+}
+
+String moneyDetailsStamp(dynamic value) {
+  final local = moneyLocalTime(value);
+  if (local == null) {
+    return '';
+  }
+  return '${local.day} ${_month(local.month)} ${local.year} · ${_clock(local)}';
+}
+
+class MoneyActivityEntry {
+  const MoneyActivityEntry.header(this.label) : transaction = null;
+
+  const MoneyActivityEntry.item(this.transaction) : label = null;
+
+  final String? label;
+  final Map<String, dynamic>? transaction;
+
+  bool get isHeader => label != null;
+}
+
+List<MoneyActivityEntry> groupMoneyActivity(
+  List<Map<String, dynamic>> transactions, {
+  DateTime? now,
+}) {
+  final clock = now ?? DateTime.now();
+  final rows = <MoneyActivityEntry>[];
+  DateTime? currentDay;
+  var sawUndated = false;
+
+  for (final transaction in transactions) {
+    final local = moneyLocalTime(
+      transaction['transactionDate'] ?? transaction['createdAt'],
+    );
+    if (local == null) {
+      if (!sawUndated) {
+        sawUndated = true;
+        currentDay = null;
+        rows.add(const MoneyActivityEntry.header('UNDATED'));
+      }
+      rows.add(MoneyActivityEntry.item(transaction));
+      continue;
+    }
+
+    final day = DateTime(local.year, local.month, local.day);
+    if (currentDay != day) {
+      currentDay = day;
+      sawUndated = false;
+      rows.add(
+        MoneyActivityEntry.header(moneyActivityGroupLabel(local, clock)),
+      );
+    }
+    rows.add(MoneyActivityEntry.item(transaction));
+  }
+
+  return rows;
+}
+
+String _cleanText(dynamic value) {
   if (value == null) {
     return '';
   }
-  final parsed = DateTime.tryParse('$value');
-  if (parsed == null) {
+  final text = '$value'.trim();
+  if (text.isEmpty || text.toLowerCase() == 'null') {
     return '';
   }
-  final local = parsed.toLocal();
-  final day = local.day.toString().padLeft(2, '0');
-  final month = local.month.toString().padLeft(2, '0');
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$day/$month $hour:$minute';
+  return text;
 }
+
+String _titleCase(String value) {
+  return value
+      .split(RegExp(r'\s+'))
+      .map((word) {
+        if (word.isEmpty) {
+          return word;
+        }
+        return '${word[0].toUpperCase()}${word.substring(1)}';
+      })
+      .join(' ');
+}
+
+String _groupThousands(String digits) {
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+String _clock(DateTime local) {
+  final suffix = local.hour >= 12 ? 'PM' : 'AM';
+  final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour12:$minute $suffix';
+}
+
+const _monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+String _month(int month) => _monthNames[month - 1];
+
+String _monthUpper(int month) => _month(month).toUpperCase();

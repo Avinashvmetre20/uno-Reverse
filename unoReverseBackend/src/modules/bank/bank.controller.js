@@ -369,10 +369,14 @@ export async function createTransaction(req, res) {
 export async function listTransactions(req, res) {
   try {
     const transactions = await listUserTransactions(req.user.userId);
-    res.status(200).json(transactions);
+    res.status(200).json({
+      success: true,
+      data: transactions,
+    });
   } catch (error) {
     const status = error.status || 500;
     res.status(status).json({
+      success: false,
       message: status === 500 ? 'Unable to load transactions' : error.message,
     });
   }

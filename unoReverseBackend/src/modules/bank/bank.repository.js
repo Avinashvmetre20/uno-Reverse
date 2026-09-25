@@ -1,5 +1,14 @@
 import pool from '../../database/connection.js';
 
+let transactionBankOptional;
+
+export function ensureTransactionBankOptional() {
+  transactionBankOptional ??= pool.query(
+    `ALTER TABLE user_transaction ALTER COLUMN bank_id DROP NOT NULL`,
+  );
+  return transactionBankOptional;
+}
+
 export async function createBank({
   userId,
   bankName,
@@ -305,6 +314,8 @@ export async function insertSpendGainTransaction({
   shouldUpdateCard,
   syncBankDebitCards = false,
 }) {
+  await ensureTransactionBankOptional();
+
   const client = await pool.connect();
 
   try {
@@ -404,12 +415,16 @@ export async function insertSpendGainTransaction({
 
 export async function findActiveTransactionsByUserId(userId) {
   const result = await pool.query(
-    `SELECT user_transaction_id, user_id, bank_id, card_id, transaction_type,
-            amount, balance_amount, purpose, notes,
-            transaction_date, is_active, created_at, updated_at
-     FROM user_transaction
-     WHERE user_id = $1 AND is_active = TRUE
-     ORDER BY transaction_date DESC, created_at DESC`,
+    `SELECT ut.user_transaction_id, ut.user_id, ut.bank_id, ut.card_id,
+            ut.transaction_type, ut.amount, ut.balance_amount, ut.purpose, ut.notes,
+            ut.transaction_date, ut.is_active, ut.created_at, ut.updated_at,
+            bm.bank_name,
+            cm.card_name
+     FROM user_transaction ut
+     LEFT JOIN bank_master bm ON bm.bank_id = ut.bank_id
+     LEFT JOIN card_master cm ON cm.card_id = ut.card_id
+     WHERE ut.user_id = $1 AND ut.is_active = TRUE
+     ORDER BY ut.transaction_date DESC, ut.created_at DESC`,
     [userId],
   );
 

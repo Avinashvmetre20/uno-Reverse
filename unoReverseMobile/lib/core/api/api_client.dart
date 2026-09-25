@@ -47,15 +47,14 @@ class ApiClient {
         _transport = transport,
         _clock = clock ?? DateTime.now;
 
-  /// The phone reaches this PC through `adb reverse tcp:3000 tcp:3000`.
-  /// 192.168.0.107 is blocked because this Wi-Fi network is marked Public.
-  /// Override with --dart-define=API_BASE_URL=http://host:3000 if that changes.
+  /// Production API on Render.
+  /// Override with --dart-define=API_BASE_URL=http://127.0.0.1:3000 for a local server.
   static String get defaultBaseUrl {
     const override = String.fromEnvironment('API_BASE_URL');
     if (override.isNotEmpty) {
       return override;
     }
-    return 'http://127.0.0.1:3000';
+    return 'https://core-backend-ho5o.onrender.com';
   }
 
   static ApiClient? _instance;

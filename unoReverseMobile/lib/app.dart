@@ -10,7 +10,7 @@ import 'package:uno_reverse/core/security/secure_store.dart';
 import 'package:uno_reverse/features/auth/login_page.dart';
 import 'package:uno_reverse/features/auth/mpin_setup_page.dart';
 import 'package:uno_reverse/features/auth/mpin_unlock_page.dart';
-import 'package:uno_reverse/features/home/home_page.dart';
+import 'package:uno_reverse/features/shell/app_shell.dart';
 
 class UnoReverseApp extends StatelessWidget {
   const UnoReverseApp({super.key, required this.auth});
@@ -52,7 +52,7 @@ class AuthGate extends StatelessWidget {
         return const MpinUnlockPage();
       case AuthPhase.authenticated:
       case AuthPhase.loggingOut:
-        return const HomePage();
+        return const AppShell();
     }
   }
 }

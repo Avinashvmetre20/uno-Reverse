@@ -126,11 +126,43 @@ export async function touchLastLogin(userId) {
 
 export async function findUserById(userId) {
   const result = await pool.query(
-    `SELECT user_id, first_name, last_name, role, email, mobile_number,
-            date_of_birth, gender, avatar_url, is_active,
-            is_email_verified, is_mobile_verified, last_login_at, created_at
-     FROM user_master
-     WHERE user_id = $1
+    `SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.mobile_number,
+            u.date_of_birth, u.gender, u.avatar_url, u.is_active,
+            u.is_email_verified, u.is_mobile_verified, u.last_login_at, u.created_at,
+            COALESCE(
+              (
+                SELECT json_agg(
+                  json_build_object(
+                    'bankId', bm.bank_id,
+                    'bankName', bm.bank_name,
+                    'accountType', bm.account_type,
+                    'accountLast4', bm.account_last_4,
+                    'balance', bm.balance
+                  )
+                  ORDER BY bm.bank_name ASC
+                )
+                FROM bank_master bm
+                WHERE bm.user_id = u.user_id AND bm.is_active = TRUE
+              ),
+              '[]'::json
+            ) AS banks,
+            (
+              SELECT COUNT(*)::int
+              FROM card_master cm
+              WHERE cm.user_id = u.user_id AND cm.is_active = TRUE
+            ) AS card_count,
+            (
+              SELECT COUNT(*)::int
+              FROM user_transaction ut
+              WHERE ut.user_id = u.user_id AND ut.is_active = TRUE
+            ) AS transaction_count,
+            (
+              SELECT COALESCE(SUM(bm.balance), 0)
+              FROM bank_master bm
+              WHERE bm.user_id = u.user_id AND bm.is_active = TRUE
+            ) AS total_balance
+     FROM user_master u
+     WHERE u.user_id = $1
      LIMIT 1`,
     [userId],
   );

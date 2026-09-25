@@ -75,6 +75,8 @@ export async function getProfile(userId) {
     throw httpError(404, 'User not found', 'USER_NOT_FOUND');
   }
 
+  const banks = Array.isArray(user.banks) ? user.banks : [];
+
   return {
     userId: user.user_id,
     firstName: user.first_name,
@@ -90,5 +92,10 @@ export async function getProfile(userId) {
     isMobileVerified: user.is_mobile_verified,
     lastLoginAt: user.last_login_at,
     createdAt: user.created_at,
+    bankNames: banks.map((bank) => bank.bankName).filter(Boolean),
+    banks,
+    cardCount: user.card_count ?? 0,
+    transactionCount: user.transaction_count ?? 0,
+    totalBalance: user.total_balance,
   };
 }
